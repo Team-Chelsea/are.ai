@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Meeting Audio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 400px;
+        }
+        .container h1 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #e9f5ff;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background-color: #d0ebff;
+        }
+        .upload-area p {
+            margin: 0;
+            color: #007bff;
+        }
+        .progress {
+            display: none;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            width: 0;
+            height: 10px;
+            background-color: #007bff;
+            border-radius: 5px;
+            transition: width 0.3s;
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 1em;
+            color: #333;
+        }
+        .actions {
+            margin-top: 20px;
+            display: none;
+        }
+        .actions button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .actions button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Meeting Audio</h1>
+        <div class="upload-area" id="upload-area">
+            <p>Drag and drop your file here or click to select</p>
+        </div>
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="status" id="status">Waiting for file upload...</div>
+        <div class="actions" id="actions">
+            <button id="view-transcript">View Transcript</button>
+            <button id="get-feedback">Get Feedback</button>
+        </div>
+    </div>
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const progressBar = document.getElementById('progress-bar');
+        const status = document.getElementById('status');
+        const actions = document.getElementById('actions');
+
+        uploadArea.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.mp3';
+            input.onchange = handleFileUpload;
+            input.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#d0ebff';
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.backgroundColor = '#e9f5ff';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#e9f5ff';
+            const file = e.dataTransfer.files[0];
+            handleFileUpload({ target: { files: [file] } });
+        });
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                status.textContent = 'Uploading...';
+                document.querySelector('.progress').style.display = 'block';
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 10;
+                    progressBar.style.width = progress + '%';
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        status.textContent = 'Upload complete! Transcript is ready.';
+                        actions.style.display = 'block';
+                    }
+                }, 300);
+            }
+        }
+    </script>
+</body>
+</html>
