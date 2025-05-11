@@ -233,6 +233,10 @@
                 status.textContent = 'Processing transcription...';
             }
         });
+
+        document.getElementById('view-transcript').addEventListener('click', () => {
+            window.location.href = '/transcripts.html';
+        });
     </script>
 </body>
 </html>

@@ -59,22 +59,56 @@
         .navigation button:hover {
             background-color: #0056b3;
         }
+        .transcript-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            position: relative;
+        }
+        .modal-content h2 {
+            margin-top: 0;
+        }
+        .modal-content pre {
+            background: #f4f4f9;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .modal-content button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .modal-content button:hover {
+            background: #0056b3;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Transcripts</h1>
         <ul class="transcript-list">
-            <li class="transcript-item" onclick="viewTranscript('Transcript 1')">
-                <h3>Meeting_Audio_1.mp3</h3>
-                <p>Date: 10 May 2025</p>
-                <p>Preview: This is a preview of the transcript...</p>
-            </li>
-            <li class="transcript-item" onclick="viewTranscript('Transcript 2')">
-                <h3>Meeting_Audio_2.mp3</h3>
-                <p>Date: 09 May 2025</p>
-                <p>Preview: Another preview of the transcript...</p>
-            </li>
+            <!-- Transcript items will be populated here by JavaScript -->
         </ul>
     </div>
     <div class="navigation">
@@ -91,7 +125,7 @@
             if (data.status === 'Processing complete' && data.transcriptReady) {
                 const transcriptList = document.querySelector('.transcript-list');
 
-                // Add new transcript to the list
+                // Add new transcript entry dynamically
                 const listItem = document.createElement('li');
                 listItem.className = 'transcript-item';
                 listItem.onclick = () => viewTranscript(data.metadata.transcriptId);
@@ -99,7 +133,7 @@
                 listItem.innerHTML = `
                     <h3>${data.metadata.filename}</h3>
                     <p>Date: ${new Date(data.metadata.uploadTime).toLocaleString()}</p>
-                    <p>Preview: Transcript is ready. Click to view full content.</p>
+                    <p>Preview: ${data.metadata.preview || 'Transcript preview not available.'}</p>
                 `;
 
                 transcriptList.appendChild(listItem);
@@ -107,9 +141,48 @@
         });
 
         function viewTranscript(transcriptId) {
-            alert(`Viewing full transcript for ID: ${transcriptId}`);
-            // Replace this alert with logic to fetch and display the full transcript.
+            // Fetch and display the full transcript dynamically
+            fetch(`/backend/transcripts/${transcriptId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const modal = document.createElement('div');
+                    modal.className = 'transcript-modal';
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <h2>Transcript for ${data.filename || 'Unknown'}</h2>
+                            <p><strong>Upload Time:</strong> ${data.uploadTime ? new Date(data.uploadTime).toLocaleString() : 'Unknown'}</p>
+                            <pre>${data.text || 'Transcript content not available.'}</pre>
+                            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                })
+                .catch(error => console.error('Error fetching transcript:', error));
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/backend/transcripts')
+                .then(response => response.json())
+                .then(transcripts => {
+                    const transcriptList = document.querySelector('.transcript-list');
+                    transcriptList.innerHTML = ''; // Clear placeholders
+
+                    transcripts.forEach(transcript => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'transcript-item';
+                        listItem.onclick = () => viewTranscript(transcript.id);
+
+                        listItem.innerHTML = `
+                            <h3>${transcript.filename}</h3>
+                            <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
+                            <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
+                        `;
+
+                        transcriptList.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching transcripts:', error));
+        });
     </script>
 </body>
 </html>

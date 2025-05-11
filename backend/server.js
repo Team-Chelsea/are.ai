@@ -66,7 +66,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         io.emit('upload-progress', { status: 'Processing started', filename: file.originalname });
 
         // Transcribe the uploaded audio file
-        const transcriptData = await transcribeAudio(file.path);
+        const transcriptData = await transcribeAudio(file.path, file);
 
         // Add metadata
         const metadata = {
@@ -90,6 +90,46 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+// Serve transcript files dynamically
+app.get('/backend/transcripts/:id', (req, res) => {
+    const transcriptFilePath = req.params.id.endsWith('.json')
+        ? path.join(TRANSCRIPTS_DIR, req.params.id)
+        : path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    console.log('Transcript request received for ID:', req.params.id);
+    console.log('Looking for file at path:', transcriptFilePath);
+
+    if (fs.existsSync(transcriptFilePath)) {
+        res.sendFile(transcriptFilePath);
+    } else {
+        res.status(404).send({ error: 'Transcript not found' });
+    }
+});
+
+// Endpoint to list all transcripts
+app.get('/backend/transcripts', (req, res) => {
+    fs.readdir(TRANSCRIPTS_DIR, (err, files) => {
+        if (err) {
+            console.error('Error reading transcripts directory:', err);
+            return res.status(500).send({ error: 'Failed to retrieve transcripts' });
+        }
+
+        const transcripts = files.map(file => {
+            const filePath = path.join(TRANSCRIPTS_DIR, file);
+            const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+            return {
+                id: path.basename(file, '.json'),
+                filename: content.filename || 'Unknown Filename',
+                uploadTime: content.uploadTime || 'Unknown Time',
+                preview: content.text ? content.text.slice(0, 100) + '...' : 'No preview available',
+            };
+        });
+
+        res.send(transcripts);
+    });
+});
+
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('A user connected');
@@ -100,7 +140,7 @@ io.on('connection', (socket) => {
 });
 
 // Function to send audio file to AssemblyAI for transcription
-async function transcribeAudio(filePath) {
+async function transcribeAudio(filePath, file) {
     try {
         console.log('Reading file:', filePath);
         const fileData = fs.readFileSync(filePath);
@@ -157,7 +197,12 @@ async function transcribeAudio(filePath) {
         }
 
         const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${transcriptId}.json`);
-        fs.writeFileSync(transcriptFilePath, JSON.stringify(transcriptData, null, 2));
+        const transcriptToSave = {
+            ...transcriptData,
+            filename: file.originalname,
+            uploadTime: new Date().toISOString(),
+        };
+        fs.writeFileSync(transcriptFilePath, JSON.stringify(transcriptToSave, null, 2));
         console.log(`Transcript saved to ${transcriptFilePath}`);
 
         return transcriptData;
