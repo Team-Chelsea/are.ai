@@ -114,11 +114,13 @@
             <button id="feedback-button">Feedback</button>
         </div>
     </div>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const uploadArea = document.getElementById('upload-area');
         const progressBar = document.getElementById('progress-bar');
         const status = document.getElementById('status');
         const actions = document.getElementById('actions');
+        const socket = io('http://localhost:3000');
 
         uploadArea.addEventListener('click', () => {
             const input = document.createElement('input');
@@ -147,20 +149,52 @@
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
                 status.textContent = 'Uploading...';
                 document.querySelector('.progress').style.display = 'block';
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress += 10;
-                    progressBar.style.width = progress + '%';
-                    if (progress >= 100) {
-                        clearInterval(interval);
-                        status.textContent = 'Upload complete! Transcript is ready.';
-                        actions.style.display = 'block';
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', 'http://localhost:3000/upload', true);
+
+                // Update progress bar based on upload progress
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 50; // Upload is 50% of the process
+                        progressBar.style.width = percentComplete + '%';
                     }
-                }, 300);
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        status.textContent = 'Upload complete! Processing transcription...';
+                    } else {
+                        status.textContent = 'Upload failed. Please try again.';
+                    }
+                };
+
+                xhr.onerror = () => {
+                    status.textContent = 'An error occurred during the upload. Please try again.';
+                };
+
+                xhr.send(formData);
             }
         }
+
+        // Listen for real-time updates from the backend
+        socket.on('upload-progress', (data) => {
+            if (data.status === 'Processing started') {
+                status.textContent = 'Processing transcription...';
+                progressBar.style.width = '50%'; // Start transcription at 50%
+            } else if (data.status === 'Processing 50%') {
+                progressBar.style.width = '75%'; // Midway through transcription
+            } else if (data.status === 'Processing complete') {
+                progressBar.style.width = '100%';
+                status.textContent = 'Transcription complete! Ready to view.';
+                actions.style.display = 'block';
+            }
+        });
     </script>
 </body>
 </html>

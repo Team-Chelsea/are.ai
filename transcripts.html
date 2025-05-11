@@ -82,10 +82,33 @@
         <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
         <button id="feedback-button">Feedback</button>
     </div>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-        function viewTranscript(transcriptName) {
-            alert(`Viewing full transcript for: ${transcriptName}`);
-            // Replace this alert with logic to open a modal or navigate to a detailed view.
+        const socket = io();
+
+        // Update progress bar and transcript list dynamically
+        socket.on('upload-progress', (data) => {
+            if (data.status === 'Processing complete' && data.transcriptReady) {
+                const transcriptList = document.querySelector('.transcript-list');
+
+                // Add new transcript to the list
+                const listItem = document.createElement('li');
+                listItem.className = 'transcript-item';
+                listItem.onclick = () => viewTranscript(data.metadata.transcriptId);
+
+                listItem.innerHTML = `
+                    <h3>${data.metadata.filename}</h3>
+                    <p>Date: ${new Date(data.metadata.uploadTime).toLocaleString()}</p>
+                    <p>Preview: Transcript is ready. Click to view full content.</p>
+                `;
+
+                transcriptList.appendChild(listItem);
+            }
+        });
+
+        function viewTranscript(transcriptId) {
+            alert(`Viewing full transcript for ID: ${transcriptId}`);
+            // Replace this alert with logic to fetch and display the full transcript.
         }
     </script>
 </body>

@@ -45,22 +45,40 @@ app.get('/transcripts.html', (req, res) => {
 
 // Handle file upload
 app.post('/upload', upload.single('file'), async (req, res) => {
+    console.log('Upload endpoint hit');
+    console.log('Request headers:', req.headers);
+    console.log('Request body:', req.body);
+
     const file = req.file;
 
+    console.log('File received:', file);
+
     if (!file) {
+        console.error('No file uploaded.');
         return res.status(400).send('No file uploaded.');
     }
 
-    // Notify frontend that processing has started
-    io.emit('upload-progress', { status: 'Processing started' });
+    // Notify frontend that upload has started
+    io.emit('upload-progress', { status: 'Upload started', filename: file.originalname });
 
     try {
+        // Notify frontend that processing has started
+        io.emit('upload-progress', { status: 'Processing started', filename: file.originalname });
+
         // Transcribe the uploaded audio file
         const transcriptData = await transcribeAudio(file.path);
 
+        // Add metadata
+        const metadata = {
+            filename: file.originalname,
+            uploadTime: new Date().toISOString(),
+            transcriptId: transcriptData.id,
+        };
+
         // Notify frontend that processing is complete
-        io.emit('upload-progress', { status: 'Processing complete', transcriptReady: true });
-        res.status(200).send({ message: 'File uploaded and processed successfully.', transcript: transcriptData });
+        io.emit('upload-progress', { status: 'Processing complete', transcriptReady: true, metadata });
+
+        res.status(200).send({ message: 'File uploaded and processed successfully.', metadata });
     } catch (error) {
         console.error('Error during transcription:', error);
         res.status(500).send({ message: 'Error during transcription.', error: error.message });
