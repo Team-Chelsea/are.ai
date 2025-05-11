@@ -45,13 +45,32 @@
         .progress {
             display: none;
             margin-top: 20px;
+            text-align: center;
         }
-        .progress-bar {
-            width: 0;
-            height: 10px;
-            background-color: #007bff;
-            border-radius: 5px;
-            transition: width 0.3s;
+        .dots {
+            display: inline-block;
+            font-size: 2em;
+            color: #007bff;
+        }
+        .dots span {
+            animation: blink 1.5s infinite;
+        }
+        .dots span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        .dots span:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        @keyframes blink {
+            0%, 20% {
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
         }
         .status {
             margin-top: 20px;
@@ -100,8 +119,10 @@
         <div class="upload-area" id="upload-area">
             <p>Drag and drop your file here or click to select</p>
         </div>
-        <div class="progress">
-            <div class="progress-bar" id="progress-bar"></div>
+        <div class="progress" id="progress">
+            <div class="dots" id="dots">
+                <span>.</span><span>.</span><span>.</span>
+            </div>
         </div>
         <div class="status" id="status">Waiting for file upload...</div>
         <div class="actions" id="actions">
@@ -117,7 +138,8 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const uploadArea = document.getElementById('upload-area');
-        const progressBar = document.getElementById('progress-bar');
+        const progress = document.getElementById('progress');
+        const dots = document.getElementById('dots');
         const status = document.getElementById('status');
         const actions = document.getElementById('actions');
         const socket = io('http://localhost:3000');
@@ -161,14 +183,17 @@
                 // Update progress bar based on upload progress
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
-                        const percentComplete = (e.loaded / e.total) * 50; // Upload is 50% of the process
-                        progressBar.style.width = percentComplete + '%';
+                        const percentComplete = Math.round((e.loaded / e.total) * 20); // Upload is 20% of the process
+                        // progressBar.style.width = percentComplete + '%';
+                        // progressPercentage.textContent = percentComplete + '%';
                     }
                 };
 
                 xhr.onload = () => {
                     if (xhr.status === 200) {
-                        status.textContent = 'Upload complete! Processing transcription...';
+                        status.textContent = 'Upload complete!';
+                        // progressPercentage.style.display = 'none'; // Hide percentage text after upload
+                        simulateTranscriptionProgress();
                     } else {
                         status.textContent = 'Upload failed. Please try again.';
                     }
@@ -182,17 +207,30 @@
             }
         }
 
+        function simulateTranscriptionProgress() {
+            let progressValue = 20; // Start from 20% (upload complete)
+            const interval = setInterval(() => {
+                if (progressValue < 100) {
+                    progressValue += Math.random() * 5; // Increment progress randomly to simulate activity
+                    if (progressValue > 99) progressValue = 99; // Cap at 99% until final completion
+                    // progressBar.style.width = progressValue + '%';
+                } else {
+                    clearInterval(interval);
+                }
+            }, 500);
+        }
+
         // Listen for real-time updates from the backend
         socket.on('upload-progress', (data) => {
-            if (data.status === 'Processing started') {
+            if (data.status === 'Processing transcription...') {
                 status.textContent = 'Processing transcription...';
-                progressBar.style.width = '50%'; // Start transcription at 50%
-            } else if (data.status === 'Processing 50%') {
-                progressBar.style.width = '75%'; // Midway through transcription
             } else if (data.status === 'Processing complete') {
-                progressBar.style.width = '100%';
-                status.textContent = 'Transcription complete! Ready to view.';
+                // Clear the status message and hide the dots animation
+                status.textContent = '';
+                progress.style.display = 'none';
                 actions.style.display = 'block';
+                uploadArea.style.display = 'none'; // Hide the upload area when the file is being processed
+                status.textContent = 'Processing transcription...';
             }
         });
     </script>

@@ -131,8 +131,8 @@ async function transcribeAudio(filePath) {
         console.log('Transcription requested. Transcript ID:', transcriptId);
 
         let transcriptData;
+        let progress = 20; // Start progress at 20% after upload
         while (true) {
-            console.log('Polling for transcription status...');
             const pollingResponse = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
                 headers: {
                     'authorization': ASSEMBLYAI_API_KEY,
@@ -140,17 +140,20 @@ async function transcribeAudio(filePath) {
             });
 
             transcriptData = pollingResponse.data;
-            console.log('Current transcription status:', transcriptData.status);
 
             if (transcriptData.status === 'completed') {
-                console.log('Transcription completed.');
+                progress = 100; // Set progress to 100% on completion
+                io.emit('upload-progress', { status: 'Processing complete', progress });
                 break;
             } else if (transcriptData.status === 'failed') {
-                console.error('Transcription failed:', transcriptData);
                 throw new Error('Transcription failed');
+            } else {
+                progress += Math.random() * 10; // Increment progress randomly to simulate activity
+                if (progress > 99) progress = 99; // Cap progress at 99% until completion
+                io.emit('upload-progress', { status: 'Processing transcription...', progress });
             }
 
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait before polling again
         }
 
         const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${transcriptId}.json`);
