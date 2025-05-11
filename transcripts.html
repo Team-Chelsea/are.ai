@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcripts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .transcript-list {
+            list-style: none;
+            padding: 0;
+        }
+        .transcript-item {
+            background: #fff;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+        .transcript-item:hover {
+            background-color: #e9f5ff;
+        }
+        .transcript-item h3 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+        .transcript-item p {
+            margin: 5px 0;
+            color: #555;
+        }
+        .navigation {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .navigation button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .navigation button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transcripts</h1>
+        <ul class="transcript-list">
+            <li class="transcript-item" onclick="viewTranscript('Transcript 1')">
+                <h3>Meeting_Audio_1.mp3</h3>
+                <p>Date: 10 May 2025</p>
+                <p>Preview: This is a preview of the transcript...</p>
+            </li>
+            <li class="transcript-item" onclick="viewTranscript('Transcript 2')">
+                <h3>Meeting_Audio_2.mp3</h3>
+                <p>Date: 09 May 2025</p>
+                <p>Preview: Another preview of the transcript...</p>
+            </li>
+        </ul>
+    </div>
+    <div class="navigation">
+        <button id="uploads-button" onclick="window.location.href='/index.html'">Upload</button>
+        <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
+        <button id="feedback-button">Feedback</button>
+    </div>
+    <script>
+        function viewTranscript(transcriptName) {
+            alert(`Viewing full transcript for: ${transcriptName}`);
+            // Replace this alert with logic to open a modal or navigate to a detailed view.
+        }
+    </script>
+</body>
+</html>

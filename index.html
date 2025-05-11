@@ -74,6 +74,24 @@
         .actions button:hover {
             background-color: #0056b3;
         }
+        .navigation {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .navigation button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px; /* Increased size */
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .navigation button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -89,6 +107,11 @@
         <div class="actions" id="actions">
             <button id="view-transcript">View Transcript</button>
             <button id="get-feedback">Get Feedback</button>
+        </div>
+        <div class="navigation">
+            <button id="uploads-button" onclick="window.location.href='/upload'">Upload</button>
+            <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
+            <button id="feedback-button">Feedback</button>
         </div>
     </div>
     <script>

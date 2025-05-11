@@ -15,6 +15,21 @@ const upload = multer({ dest: 'uploads/' });
 // Serve static files (if needed for frontend integration)
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve the index.html file as the default route
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../index.html'));
+});
+
+// Serve the index.html file explicitly
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../index.html'));
+});
+
+// Serve the transcripts.html file
+app.get('/transcripts.html', (req, res) => {
+    res.sendFile(path.join(__dirname, '../transcripts.html'));
+});
+
 // Handle file upload
 app.post('/upload', upload.single('file'), (req, res) => {
     const file = req.file;
