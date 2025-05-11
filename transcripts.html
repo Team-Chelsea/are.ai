@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcripts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .transcript-list {
+            list-style: none;
+            padding: 0;
+        }
+        .transcript-item {
+            background: #fff;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+        }
+        .transcript-item:hover {
+            background-color: #e9f5ff;
+        }
+        .transcript-item h3 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+        .transcript-item p {
+            margin: 5px 0;
+            color: #555;
+        }
+        .navigation {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .navigation button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .navigation button:hover {
+            background-color: #0056b3;
+        }
+        .transcript-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            height: 80%;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-content h2 {
+            margin-top: 0;
+        }
+        .modal-content pre {
+            background: #f4f4f9;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .modal-content button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .modal-content button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transcripts</h1>
+        <ul class="transcript-list">
+            <!-- Transcript items will be populated here by JavaScript -->
+        </ul>
+    </div>
+    <div class="navigation">
+        <button id="uploads-button" onclick="window.location.href='/index.html'">Upload</button>
+        <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
+        <button id="feedback-button">Feedback</button>
+    </div>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        // Update progress bar and transcript list dynamically
+        socket.on('upload-progress', (data) => {
+            if (data.status === 'Processing complete' && data.transcriptReady) {
+                const transcriptList = document.querySelector('.transcript-list');
+
+                // Add new transcript entry dynamically
+                const listItem = document.createElement('li');
+                listItem.className = 'transcript-item';
+                listItem.onclick = () => viewTranscript(data.metadata.transcriptId);
+
+                listItem.innerHTML = `
+                    <h3>${data.metadata.filename}</h3>
+                    <p>Date: ${new Date(data.metadata.uploadTime).toLocaleString()}</p>
+                    <p>Preview: ${data.metadata.preview || 'Transcript preview not available.'}</p>
+                `;
+
+                transcriptList.appendChild(listItem);
+            }
+        });
+
+        function viewTranscript(transcriptId) {
+            // Fetch and display the full transcript dynamically
+            fetch(`/backend/transcripts/${transcriptId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const modal = document.createElement('div');
+                    modal.className = 'transcript-modal';
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <p><strong>Upload Time:</strong> ${data.uploadTime ? new Date(data.uploadTime).toLocaleString() : 'Unknown'}</p>
+                            <p><strong>Speakers:</strong> ${data.utterances ? Array.from(new Set(data.utterances.map(utterance => utterance.speaker))).map(speaker => `<span contenteditable="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="updateSpeakerName('${data.id}', '${speaker}', this.textContent)">${speaker}</span>`).join(', ') : 'No speaker information available.'}</p>
+                            <pre>${data.utterances ? data.utterances.map(utterance => `<strong>${utterance.speaker}:</strong> ${utterance.text}`).join('\n\n') : 'Transcript content not available.'}</pre>
+                            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                })
+                .catch(error => console.error('Error fetching transcript:', error));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/backend/transcripts')
+                .then(response => response.json())
+                .then(transcripts => {
+                    const transcriptList = document.querySelector('.transcript-list');
+                    transcriptList.innerHTML = ''; // Clear placeholders
+
+                    transcripts.forEach((transcript, index) => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'transcript-item';
+                        let clickTimeout;
+
+                        listItem.onclick = () => {
+                            clearTimeout(clickTimeout); // Clear any existing timeout
+                            clickTimeout = setTimeout(() => {
+                                viewTranscript(transcript.id); // Open transcript if no double-click occurs
+                            }, 300); // Wait 300ms to check for a second click
+                        };
+
+                        listItem.ondblclick = (e) => {
+                            clearTimeout(clickTimeout); // Prevent single-click action
+                            e.stopPropagation(); // Prevent the transcript from opening on double-click
+                            const h3 = listItem.querySelector('h3');
+                            h3.setAttribute('contenteditable', 'true');
+                            h3.focus();
+                        };
+
+                        listItem.innerHTML = `
+                            <h3 onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="this.removeAttribute('contenteditable'); updateTranscriptName('${transcript.id}', this.textContent)">${transcript.displayName}</h3>
+                            <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
+                            <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
+                        `;
+
+                        transcriptList.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching transcripts:', error));
+        });
+
+        function updateTranscriptName(transcriptId, newName) {
+            fetch(`/backend/transcripts/${transcriptId}/rename`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ newName }),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to update transcript name');
+                    }
+                    console.log('Transcript name updated successfully');
+                    // Fetch updated transcript list to reflect changes
+                    fetch('/backend/transcripts')
+                        .then(response => response.json())
+                        .then(transcripts => {
+                            const transcriptList = document.querySelector('.transcript-list');
+                            transcriptList.innerHTML = ''; // Clear existing list
+
+                            transcripts.forEach((transcript, index) => {
+                                const listItem = document.createElement('li');
+                                listItem.className = 'transcript-item';
+                                listItem.innerHTML = `
+                                    <h3>${transcript.displayName}</h3>
+                                    <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
+                                    <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
+                                `;
+                                transcriptList.appendChild(listItem);
+                            });
+                        });
+                })
+                .catch(error => console.error('Error updating transcript name:', error));
+        }
+
+        function updateSpeakerName(transcriptId, oldName, newName) {
+            fetch(`/backend/transcripts/${transcriptId}/update-speaker`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ oldName, newName }),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to update speaker name');
+                    }
+                    console.log('Speaker name updated successfully');
+                })
+                .catch(error => console.error('Error updating speaker name:', error));
+        }
+    </script>
+</body>
+</html>

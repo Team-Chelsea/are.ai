@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Meeting Audio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 400px;
+        }
+        .container h1 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #e9f5ff;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background-color: #d0ebff;
+        }
+        .upload-area p {
+            margin: 0;
+            color: #007bff;
+        }
+        .progress {
+            display: none;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .dots {
+            display: inline-block;
+            font-size: 2em;
+            color: #007bff;
+        }
+        .dots span {
+            animation: blink 1.5s infinite;
+        }
+        .dots span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+        .dots span:nth-child(3) {
+            animation-delay: 0.6s;
+        }
+        @keyframes blink {
+            0%, 20% {
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 1em;
+            color: #333;
+        }
+        .actions {
+            margin-top: 20px;
+            display: none;
+        }
+        .actions button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .actions button:hover {
+            background-color: #0056b3;
+        }
+        .navigation {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .navigation button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px; /* Increased size */
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .navigation button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Meeting Audio</h1>
+        <div class="upload-area" id="upload-area">
+            <p>Drag and drop your file here or click to select</p>
+        </div>
+        <div class="progress" id="progress">
+            <div class="dots" id="dots">
+                <span>.</span><span>.</span><span>.</span>
+            </div>
+        </div>
+        <div class="status" id="status">Waiting for file upload...</div>
+        <div class="actions" id="actions">
+            <button id="view-transcript">View Transcript</button>
+            <button id="get-feedback">Get Feedback</button>
+        </div>
+        <div class="navigation">
+            <button id="uploads-button" onclick="window.location.href='/upload'">Upload</button>
+            <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
+            <button id="feedback-button">Feedback</button>
+        </div>
+    </div>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const progress = document.getElementById('progress');
+        const dots = document.getElementById('dots');
+        const status = document.getElementById('status');
+        const actions = document.getElementById('actions');
+        const socket = io('http://localhost:3000');
+
+        uploadArea.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.mp3';
+            input.onchange = handleFileUpload;
+            input.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#d0ebff';
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.backgroundColor = '#e9f5ff';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.backgroundColor = '#e9f5ff';
+            const file = e.dataTransfer.files[0];
+            handleFileUpload({ target: { files: [file] } });
+        });
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                status.textContent = 'Uploading...';
+                document.querySelector('.progress').style.display = 'block';
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', 'http://localhost:3000/upload', true);
+
+                // Update progress bar based on upload progress
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 20); // Upload is 20% of the process
+                        // progressBar.style.width = percentComplete + '%';
+                        // progressPercentage.textContent = percentComplete + '%';
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        status.textContent = 'Upload complete!';
+                        // progressPercentage.style.display = 'none'; // Hide percentage text after upload
+                        simulateTranscriptionProgress();
+                    } else {
+                        status.textContent = 'Upload failed. Please try again.';
+                    }
+                };
+
+                xhr.onerror = () => {
+                    status.textContent = 'An error occurred during the upload. Please try again.';
+                };
+
+                xhr.send(formData);
+            }
+        }
+
+        function simulateTranscriptionProgress() {
+            let progressValue = 20; // Start from 20% (upload complete)
+            const interval = setInterval(() => {
+                if (progressValue < 100) {
+                    progressValue += Math.random() * 5; // Increment progress randomly to simulate activity
+                    if (progressValue > 99) progressValue = 99; // Cap at 99% until final completion
+                    // progressBar.style.width = progressValue + '%';
+                } else {
+                    clearInterval(interval);
+                }
+            }, 500);
+        }
+
+        // Listen for real-time updates from the backend
+        socket.on('upload-progress', (data) => {
+            if (data.status === 'Processing transcription...') {
+                status.textContent = 'Processing transcription...';
+            } else if (data.status === 'Processing complete') {
+                // Clear the status message and hide the dots animation
+                status.textContent = '';
+                progress.style.display = 'none';
+                actions.style.display = 'block';
+                uploadArea.style.display = 'none'; // Hide the upload area when the file is being processed
+                status.textContent = 'Processing transcription...';
+            }
+        });
+
+        document.getElementById('view-transcript').addEventListener('click', () => {
+            window.location.href = '/transcripts.html';
+        });
+    </script>
+</body>
+</html>
