@@ -195,6 +195,209 @@ app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
     }
 });
 
+// Preprocess transcript data
+function preprocessTranscript(transcriptData) {
+    // Ensure transcript has utterances
+    if (!transcriptData.utterances || !Array.isArray(transcriptData.utterances)) {
+        throw new Error('Invalid transcript format: Missing or invalid utterances');
+    }
+
+    // Clean and normalize text in each utterance
+    transcriptData.utterances.forEach(utterance => {
+        utterance.text = utterance.text
+            .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+            .toLowerCase() // Normalize case
+            .trim(); // Remove extra spaces
+    });
+
+    return transcriptData;
+}
+
+// Analyze transcript data
+function analyzeTranscript(transcriptData) {
+    // Analyze key topics and topic flow
+    const allText = transcriptData.utterances.map(u => u.text).join(' ');
+    const wordFrequency = {};
+    allText.split(/\s+/).forEach(word => {
+        const cleanedWord = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanedWord) {
+            wordFrequency[cleanedWord] = (wordFrequency[cleanedWord] || 0) + 1;
+        }
+    });
+
+    // Analyze speaker contribution metrics
+    const speakerMetrics = {};
+    transcriptData.utterances.forEach((utterance, index) => {
+        const speaker = utterance.speaker;
+        if (!speakerMetrics[speaker]) {
+            speakerMetrics[speaker] = { wordCount: 0, turnCount: 0, interruptions: 0 };
+        }
+        speakerMetrics[speaker].wordCount += utterance.text.split(' ').length;
+        speakerMetrics[speaker].turnCount += 1;
+
+        // Check for interruptions
+        if (index > 0 && transcriptData.utterances[index - 1].speaker !== speaker) {
+            speakerMetrics[speaker].interruptions += 1;
+        }
+    });
+
+    // Perform sentiment detection
+    const sentimentAnalysis = transcriptData.utterances.map(utterance => {
+        const text = utterance.text.toLowerCase();
+        if (text.includes('good') || text.includes('great')) return 'Positive';
+        if (text.includes('bad') || text.includes('poor')) return 'Negative';
+        return 'Neutral';
+    });
+    const overallSentiment = sentimentAnalysis.reduce((acc, sentiment) => {
+        acc[sentiment] = (acc[sentiment] || 0) + 1;
+        return acc;
+    }, {});
+
+    // Clarity scoring
+    const clarityMetrics = transcriptData.utterances.map(utterance => {
+        const fillerWords = utterance.text.match(/\b(uh|um|like|you know)\b/gi) || [];
+        const clarityScore = 100 - fillerWords.length * 5; // Deduct 5 points per filler word
+        return {
+            text: utterance.text,
+            clarityScore: Math.max(clarityScore, 0),
+            fillerWords: fillerWords.length,
+        };
+    });
+
+    const confusingSegments = clarityMetrics.filter(segment => segment.clarityScore < 50);
+
+    // Speaker distribution
+    const totalWords = transcriptData.utterances.reduce((sum, utterance) => sum + utterance.text.split(' ').length, 0);
+    const speakerDistribution = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
+        return {
+            speaker,
+            percentage: ((metrics.wordCount / totalWords) * 100).toFixed(2) + '%'
+        };
+    });
+
+    // Sentiment trend
+    const sentimentTrend = transcriptData.utterances.map((utterance, index) => {
+        const text = utterance.text.toLowerCase();
+        let sentiment = 'Neutral';
+        if (text.includes('good') || text.includes('great')) sentiment = 'Positive';
+        if (text.includes('bad') || text.includes('poor')) sentiment = 'Negative';
+        return { index, sentiment };
+    });
+
+    // Key topics (top 5)
+    const keyTopics = Object.entries(wordFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([word]) => word);
+
+    // Conversation dynamics
+    const conversationDynamics = {
+        interruptions: Object.values(speakerMetrics).reduce((sum, metrics) => sum + metrics.interruptions, 0),
+        turnTaking: transcriptData.utterances.length
+    };
+
+    // Action items
+    const actionItems = transcriptData.utterances
+        .filter(utterance => utterance.text.includes('should') || utterance.text.includes('need to'))
+        .map(utterance => utterance.text);
+
+    return {
+        keyTopics,
+        speakerMetrics,
+        overallSentiment,
+        clarityMetrics,
+        confusingSegments,
+        speakerDistribution,
+        sentimentTrend,
+        conversationDynamics,
+        actionItems
+    };
+}
+
+// Endpoint to analyze a transcript
+app.get('/backend/transcripts/:id/analyze', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    console.log('Analyze endpoint hit with ID:', req.params.id);
+    console.log('Constructed file path:', transcriptFilePath);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    try {
+        let transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+
+        console.log('Transcript Data:', transcriptData);
+
+        // Preprocess the transcript
+        transcriptData = preprocessTranscript(transcriptData);
+
+        // Extract user preferences from query parameters
+        const selectedFeedback = req.query.feedback ? req.query.feedback.split(',') : [];
+
+        // Analyze the transcript
+        const analysisResults = analyzeTranscript(transcriptData);
+
+        console.log('Analysis Results:', analysisResults);
+
+        // Ensure speakerMetrics is defined and accessible
+        const speakerMetrics = analysisResults.speakerMetrics;
+
+        // Filter results based on user preferences
+        const filteredResults = {};
+        if (selectedFeedback.includes('keyTopics')) {
+            filteredResults.keyTopics = analysisResults.keyTopics;
+        }
+        if (selectedFeedback.includes('speakerMetrics')) {
+            filteredResults.speakerMetrics = analysisResults.speakerMetrics;
+        }
+        if (selectedFeedback.includes('sentiment')) {
+            filteredResults.overallSentiment = analysisResults.overallSentiment;
+        }
+        if (selectedFeedback.includes('clarity')) {
+            filteredResults.clarityMetrics = analysisResults.clarityMetrics;
+            filteredResults.confusingSegments = analysisResults.confusingSegments;
+        }
+
+        // Ensure all metrics are included in the response
+        filteredResults.speakerDistribution = analysisResults.speakerDistribution;
+        filteredResults.sentimentTrend = analysisResults.sentimentTrend;
+        filteredResults.keyTopics = analysisResults.keyTopics;
+        filteredResults.conversationDynamics = analysisResults.conversationDynamics;
+        filteredResults.actionItems = analysisResults.actionItems;
+
+        // Meeting Performance Metrics
+        const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.endTime - utterance.startTime), 0);
+        const participantEngagement = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
+            return {
+                speaker,
+                engagement: metrics.wordCount
+            };
+        });
+
+        filteredResults.meetingPerformance = {
+            duration: meetingDuration,
+            engagement: participantEngagement,
+        };
+
+        // Extract main points for content summary
+        const mainPoints = transcriptData.utterances
+            ? transcriptData.utterances.map(utterance => utterance.text).slice(0, 3) // First 3 utterances as main points
+            : [];
+
+        // Add main points to the analysis results
+        filteredResults.mainPoints = mainPoints;
+
+        console.log('Final Analysis Results:', filteredResults);
+
+        res.send(filteredResults);
+    } catch (error) {
+        console.error('Error analyzing transcript:', error);
+        res.status(500).send({ error: 'Failed to analyze transcript' });
+    }
+});
+
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('A user connected');
@@ -278,7 +481,7 @@ async function transcribeAudio(filePath, file) {
 }
 
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // Allow dynamic port selection
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
