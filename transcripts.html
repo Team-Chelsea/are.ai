@@ -75,8 +75,10 @@
             background: #fff;
             padding: 20px;
             border-radius: 8px;
-            width: 80%;
-            max-width: 600px;
+            width: 90%;
+            max-width: 800px;
+            height: 80%;
+            overflow-y: auto;
             position: relative;
         }
         .modal-content h2 {
@@ -87,6 +89,8 @@
             padding: 10px;
             border-radius: 5px;
             overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         .modal-content button {
             position: absolute;
@@ -149,9 +153,9 @@
                     modal.className = 'transcript-modal';
                     modal.innerHTML = `
                         <div class="modal-content">
-                            <h2>Transcript for ${data.filename || 'Unknown'}</h2>
                             <p><strong>Upload Time:</strong> ${data.uploadTime ? new Date(data.uploadTime).toLocaleString() : 'Unknown'}</p>
-                            <pre>${data.text || 'Transcript content not available.'}</pre>
+                            <p><strong>Speakers:</strong> ${data.utterances ? Array.from(new Set(data.utterances.map(utterance => utterance.speaker))).map(speaker => `<span contenteditable="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="updateSpeakerName('${data.id}', '${speaker}', this.textContent)">${speaker}</span>`).join(', ') : 'No speaker information available.'}</p>
+                            <pre>${data.utterances ? data.utterances.map(utterance => `<strong>${utterance.speaker}:</strong> ${utterance.text}`).join('\n\n') : 'Transcript content not available.'}</pre>
                             <button onclick="this.parentElement.parentElement.remove()">Close</button>
                         </div>
                     `;
@@ -167,13 +171,28 @@
                     const transcriptList = document.querySelector('.transcript-list');
                     transcriptList.innerHTML = ''; // Clear placeholders
 
-                    transcripts.forEach(transcript => {
+                    transcripts.forEach((transcript, index) => {
                         const listItem = document.createElement('li');
                         listItem.className = 'transcript-item';
-                        listItem.onclick = () => viewTranscript(transcript.id);
+                        let clickTimeout;
+
+                        listItem.onclick = () => {
+                            clearTimeout(clickTimeout); // Clear any existing timeout
+                            clickTimeout = setTimeout(() => {
+                                viewTranscript(transcript.id); // Open transcript if no double-click occurs
+                            }, 300); // Wait 300ms to check for a second click
+                        };
+
+                        listItem.ondblclick = (e) => {
+                            clearTimeout(clickTimeout); // Prevent single-click action
+                            e.stopPropagation(); // Prevent the transcript from opening on double-click
+                            const h3 = listItem.querySelector('h3');
+                            h3.setAttribute('contenteditable', 'true');
+                            h3.focus();
+                        };
 
                         listItem.innerHTML = `
-                            <h3>${transcript.filename}</h3>
+                            <h3 onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="this.removeAttribute('contenteditable'); updateTranscriptName('${transcript.id}', this.textContent)">${transcript.displayName}</h3>
                             <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
                             <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
                         `;
@@ -183,6 +202,58 @@
                 })
                 .catch(error => console.error('Error fetching transcripts:', error));
         });
+
+        function updateTranscriptName(transcriptId, newName) {
+            fetch(`/backend/transcripts/${transcriptId}/rename`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ newName }),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to update transcript name');
+                    }
+                    console.log('Transcript name updated successfully');
+                    // Fetch updated transcript list to reflect changes
+                    fetch('/backend/transcripts')
+                        .then(response => response.json())
+                        .then(transcripts => {
+                            const transcriptList = document.querySelector('.transcript-list');
+                            transcriptList.innerHTML = ''; // Clear existing list
+
+                            transcripts.forEach((transcript, index) => {
+                                const listItem = document.createElement('li');
+                                listItem.className = 'transcript-item';
+                                listItem.innerHTML = `
+                                    <h3>${transcript.displayName}</h3>
+                                    <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
+                                    <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
+                                `;
+                                transcriptList.appendChild(listItem);
+                            });
+                        });
+                })
+                .catch(error => console.error('Error updating transcript name:', error));
+        }
+
+        function updateSpeakerName(transcriptId, oldName, newName) {
+            fetch(`/backend/transcripts/${transcriptId}/update-speaker`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ oldName, newName }),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to update speaker name');
+                    }
+                    console.log('Speaker name updated successfully');
+                })
+                .catch(error => console.error('Error updating speaker name:', error));
+        }
     </script>
 </body>
 </html>

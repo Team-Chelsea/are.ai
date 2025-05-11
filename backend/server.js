@@ -126,8 +126,73 @@ app.get('/backend/transcripts', (req, res) => {
             };
         });
 
+        // Sort transcripts by uploadTime
+        transcripts.sort((a, b) => new Date(a.uploadTime) - new Date(b.uploadTime));
+
+        // Assign sequential names
+        transcripts.forEach((transcript, index) => {
+            transcript.displayName = `Transcript ${index + 1}`;
+        });
+
         res.send(transcripts);
     });
+});
+
+// Endpoint to rename a transcript
+app.post('/backend/transcripts/:id/rename', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    const { newName } = req.body;
+    if (!newName) {
+        return res.status(400).send({ error: 'New name is required' });
+    }
+
+    try {
+        const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+        transcriptData.displayName = newName;
+        fs.writeFileSync(transcriptFilePath, JSON.stringify(transcriptData, null, 2));
+        res.status(200).send({ message: 'Transcript name updated successfully' });
+    } catch (error) {
+        console.error('Error updating transcript name:', error);
+        res.status(500).send({ error: 'Failed to update transcript name' });
+    }
+});
+
+// Endpoint to update speaker names in a transcript
+app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName) {
+        return res.status(400).send({ error: 'Both old and new speaker names are required' });
+    }
+
+    try {
+        const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+
+        // Update speaker names in utterances
+        if (transcriptData.utterances) {
+            transcriptData.utterances.forEach(utterance => {
+                if (utterance.speaker === oldName) {
+                    utterance.speaker = newName;
+                }
+            });
+        }
+
+        fs.writeFileSync(transcriptFilePath, JSON.stringify(transcriptData, null, 2));
+        res.status(200).send({ message: 'Speaker name updated successfully' });
+    } catch (error) {
+        console.error('Error updating speaker name:', error);
+        res.status(500).send({ error: 'Failed to update speaker name' });
+    }
 });
 
 // Socket.IO connection
