@@ -240,6 +240,31 @@
                 .catch(error => console.error('Error fetching transcript:', error));
         }
 
+        // Update the Summary section dynamically
+        function fetchAndDisplaySummary(transcriptId) {
+            fetch(`/backend/transcripts/${transcriptId}/summary`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch summary');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const summaryElement = document.getElementById('summary-content');
+                    if (summaryElement) {
+                        summaryElement.textContent = data.summary || 'Summary not available.';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching summary:', error);
+                    const summaryElement = document.getElementById('summary-content');
+                    if (summaryElement) {
+                        summaryElement.textContent = 'Error loading summary.';
+                    }
+                });
+        }
+
+        // Call fetchAndDisplaySummary when analyzing a transcript
         function analyzeTranscript(transcriptId) {
             console.log('Analyzing transcript with ID:', transcriptId);
 
@@ -320,204 +345,17 @@
                         </div>
                     `;
 
-                    // Ensure the Summary element exists before updating
-                    const summaryElement = document.getElementById('summary-content');
-                    if (summaryElement) {
-                        fetch(`/backend/transcripts/${transcriptId}/summary`)
-                            .then(response => {
-                                if (!response.ok) {
-                                    throw new Error('Failed to fetch summary');
-                                }
-                                return response.json();
-                            })
-                            .then(data => {
-                                summaryElement.textContent = data.summary || 'Summary not available.';
-                            })
-                            .catch(error => {
-                                console.error('Error fetching summary:', error);
-                                summaryElement.textContent = 'Error loading summary.';
-                            });
-                    } else {
-                        console.error('Summary element not found in the DOM.');
-                    }
+                    modal.appendChild(modalContent);
+                    document.body.appendChild(modal);
 
-                    // Format the duration object into a readable string
-                    const formatDuration = (duration) => {
-                        if (!duration || typeof duration !== 'object') return 'Unknown duration';
-                        return `${duration.hours || 0} hours, ${duration.minutes || 0} minutes, ${duration.seconds || 0} seconds`;
-                    };
+                    // Fetch and display the summary
+                    fetchAndDisplaySummary(transcriptId);
 
-                    // Meeting Performance Section
-                    const meetingPerformanceSection = document.createElement('div');
-                    meetingPerformanceSection.className = 'dashboard-section';
-                    meetingPerformanceSection.innerHTML = `
-                        <h3>Meeting Performance</h3>
-                        <p><strong>Duration:</strong> ${formatDuration(data.meetingPerformance.duration)}</p>
-                        <h4>Participant Engagement</h4>
-                        <ul>
-                            ${data.meetingPerformance.engagement.map(participant => `<li>${participant.speaker}: ${participant.engagement} words</li>`).join('')}
-                        </ul>
-                    `;
-                    modalContent.appendChild(meetingPerformanceSection);
-
-                    // Use Chart.js for visualizing insights
-                    const chartContainer = document.createElement('div');
-                    chartContainer.innerHTML = `
-                        <canvas id="speakerDistributionChart"></canvas>
-                        <canvas id="sentimentTrendChart"></canvas>
-                    `;
-                    modalContent.appendChild(chartContainer);
-
-                    // Open the "Transcript Insights" in a new tab with the same design as the Transcripts page
-                    const newTab = window.open('', '_blank');
-                    newTab.document.write(`
-                        <html>
-                        <head>
-                            <title>Transcript Insights</title>
-                            <style>
-                                body {
-                                    font-family: 'Comic Sans MS', cursive, sans-serif;
-                                    margin: 0;
-                                    padding: 0;
-                                    background-color: #f0f8ff; /* Light blue */
-                                    color: #333;
-                                }
-                                h1 {
-                                    text-align: center;
-                                    margin-bottom: 20px;
-                                    color: #007bff; /* Blue */
-                                    font-size: 3em;
-                                    text-shadow: 2px 2px #ffa500; /* Orange shadow */
-                                }
-                                .dashboard {
-                                    background: #fff;
-                                    padding: 20px;
-                                    border-radius: 8px;
-                                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                                    border: 2px solid #ffbd69;
-                                }
-                                .dashboard-section {
-                                    margin-bottom: 20px;
-                                }
-                                .dashboard-section h3 {
-                                    color: #007bff; /* Blue */
-                                    font-size: 1.8em;
-                                    margin-bottom: 10px;
-                                }
-                                .dashboard-section p {
-                                    color: #555;
-                                    font-size: 1.2em;
-                                }
-                                .dashboard-section ul {
-                                    list-style: none;
-                                    padding: 0;
-                                }
-                                .dashboard-section ul li {
-                                    background: #fef9e7; /* Light yellow */
-                                    margin: 5px 0;
-                                    padding: 10px;
-                                    border-radius: 5px;
-                                    color: #333;
-                                }
-                                .dashboard-section ul li:hover {
-                                    background: #ffa500; /* Orange */
-                                    color: #fff;
-                                }
-                                .dashboard-section table {
-                                    width: 100%;
-                                    border-collapse: collapse;
-                                }
-                                .dashboard-section table th,
-                                .dashboard-section table td {
-                                    border: 1px solid #ffa500; /* Orange border */
-                                    padding: 10px;
-                                    text-align: left;
-                                }
-                                .dashboard-section table th {
-                                    background: #007bff; /* Blue */
-                                    color: white;
-                                }
-                                .dashboard-section table tr:nth-child(even) {
-                                    background: #f0f8ff; /* Light blue */
-                                }
-                                .dashboard-section table tr:hover {
-                                    background: #ffa500; /* Orange */
-                                    color: #fff;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <h1>Transcript Insights</h1>
-                            <div class="dashboard">
-                                ${modalContent.innerHTML}
-                            </div>
-                        </body>
-                        </html>
-                    `);
-                    newTab.document.close();
-
-                    // Ensure the Speaker Distribution Chart element exists before initializing
-                    const speakerDistributionElement = document.getElementById('speakerDistributionChart');
-                    if (speakerDistributionElement) {
-                        const speakerDistributionCtx = speakerDistributionElement.getContext('2d');
-                        new Chart(speakerDistributionCtx, {
-                            type: 'pie',
-                            data: {
-                                labels: speakerDistribution.map(speaker => speaker.speaker),
-                                datasets: [{
-                                    data: speakerDistribution.map(speaker => parseFloat(speaker.percentage)),
-                                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'],
-                                }],
-                            },
-                            options: {
-                                plugins: {
-                                    title: {
-                                        display: true,
-                                        text: 'Speaker Distribution',
-                                    },
-                                },
-                            },
-                        });
-                    } else {
-                        console.error('Speaker Distribution Chart element not found in the DOM.');
-                    }
-
-                    // Ensure the Sentiment Trend Chart element exists before initializing
-                    const sentimentTrendElement = document.getElementById('sentimentTrendChart');
-                    if (sentimentTrendElement) {
-                        const sentimentTrendCtx = sentimentTrendElement.getContext('2d');
-                        new Chart(sentimentTrendCtx, {
-                            type: 'line',
-                            data: {
-                                labels: sentimentTrend.map((_, index) => `Utterance ${index + 1}`),
-                                datasets: [{
-                                    label: 'Sentiment',
-                                    data: sentimentTrend.map(trend => trend.sentiment === 'Positive' ? 1 : trend.sentiment === 'Negative' ? -1 : 0),
-                                    borderColor: '#36A2EB',
-                                    fill: false,
-                                }],
-                            },
-                            options: {
-                                plugins: {
-                                    title: {
-                                        display: true,
-                                        text: 'Sentiment Trend',
-                                    },
-                                },
-                                scales: {
-                                    y: {
-                                        ticks: {
-                                            callback: function(value) {
-                                                return value === 1 ? 'Positive' : value === -1 ? 'Negative' : 'Neutral';
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        });
-                    } else {
-                        console.error('Sentiment Trend Chart element not found in the DOM.');
-                    }
+                    // Add event listener to close the modal
+                    const closeModalButton = document.createElement('button');
+                    closeModalButton.textContent = 'Close';
+                    closeModalButton.onclick = () => document.body.removeChild(modal);
+                    modalContent.appendChild(closeModalButton);
                 })
                 .catch(error => console.error('Error analyzing transcript:', error));
         }

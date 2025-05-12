@@ -7,6 +7,7 @@ const fs = require('fs');
 const axios = require('axios');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { Configuration, OpenAIApi } = require('openai'); // Import OpenAI API client
 
 // Load environment variables from .env file
 dotenv.config();
@@ -19,6 +20,11 @@ const TRANSCRIPTS_DIR = path.join(__dirname, 'transcripts');
 if (!fs.existsSync(TRANSCRIPTS_DIR)) {
     fs.mkdirSync(TRANSCRIPTS_DIR);
 }
+
+// Initialize OpenAI API client
+const openai = new OpenAIApi(new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+}));
 
 const app = express();
 const server = http.createServer(app);
@@ -211,12 +217,25 @@ app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
     }
 });
 
-// Endpoint to fetch AI-generated summary of a transcript
-app.get('/backend/transcripts/:id/summary', (req, res) => {
-    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+// Function to generate summary using OpenAI API
+async function generateSummaryWithOpenAI(transcriptText) {
+    try {
+        const response = await openai.createCompletion({
+            model: 'text-davinci-003',
+            prompt: `Summarize the following transcript:\n\n${transcriptText}`,
+            max_tokens: 150,
+            temperature: 0.7,
+        });
+        return response.data.choices[0].text.trim();
+    } catch (error) {
+        console.error('Error generating summary with OpenAI:', error);
+        throw new Error('Failed to generate summary with OpenAI');
+    }
+}
 
-    console.log('Summary endpoint hit with ID:', req.params.id);
-    console.log('Constructed file path for summary:', transcriptFilePath);
+// Endpoint to fetch AI-generated summary of a transcript
+app.get('/backend/transcripts/:id/summary', async (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
 
     if (!fs.existsSync(transcriptFilePath)) {
         return res.status(404).send({ error: 'Transcript not found' });
@@ -224,12 +243,11 @@ app.get('/backend/transcripts/:id/summary', (req, res) => {
 
     try {
         const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+        const transcriptText = transcriptData.utterances
+            ? transcriptData.utterances.map(utterance => utterance.text).join(' ')
+            : '';
 
-        // Generate a simple summary from the first few utterances
-        const summary = transcriptData.utterances
-            ? transcriptData.utterances.map(utterance => utterance.text).slice(0, 3).join(' ')
-            : 'No summary available.';
-
+        const summary = await generateSummaryWithOpenAI(transcriptText);
         res.send({ summary });
     } catch (error) {
         console.error('Error generating summary:', error);
