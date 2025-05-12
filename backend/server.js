@@ -211,6 +211,32 @@ app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
     }
 });
 
+// Endpoint to fetch AI-generated summary of a transcript
+app.get('/backend/transcripts/:id/summary', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    console.log('Summary endpoint hit with ID:', req.params.id);
+    console.log('Constructed file path for summary:', transcriptFilePath);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    try {
+        const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+
+        // Generate a simple summary from the first few utterances
+        const summary = transcriptData.utterances
+            ? transcriptData.utterances.map(utterance => utterance.text).slice(0, 3).join(' ')
+            : 'No summary available.';
+
+        res.send({ summary });
+    } catch (error) {
+        console.error('Error generating summary:', error);
+        res.status(500).send({ error: 'Failed to generate summary' });
+    }
+});
+
 // Preprocess transcript data
 function preprocessTranscript(transcriptData) {
     // Ensure transcript has utterances
@@ -343,6 +369,8 @@ app.get('/backend/transcripts/:id/analyze', (req, res) => {
         // Preprocess the transcript
         transcriptData = preprocessTranscript(transcriptData);
 
+        console.log('Preprocessed Transcript Data:', transcriptData);
+
         // Extract user preferences from query parameters
         const selectedFeedback = req.query.feedback ? req.query.feedback.split(',') : [];
 
@@ -378,26 +406,29 @@ app.get('/backend/transcripts/:id/analyze', (req, res) => {
         filteredResults.actionItems = analysisResults.actionItems;
 
         // Meeting Performance Metrics
-        const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.end - utterance.start), 0);
-        console.log('Raw Meeting Duration (ms):', meetingDuration);
-        console.log('Formatted Meeting Duration (H:M:S):', formattedDuration);
-        const formattedDuration = {
-            hours: Math.floor(meetingDuration / 3600000),
-            minutes: Math.floor((meetingDuration % 3600000) / 60000),
-            seconds: Math.floor((meetingDuration % 60000) / 1000),
-        };
-        console.log('Formatted Meeting Duration:', formattedDuration);
-        const participantEngagement = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
-            return {
-                speaker,
-                engagement: metrics.wordCount
+        try {
+            const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.end - utterance.start), 0);
+            console.log('Raw Meeting Duration (ms):', meetingDuration);
+            const formattedDuration = {
+                hours: Math.floor(meetingDuration / 3600000),
+                minutes: Math.floor((meetingDuration % 3600000) / 60000),
+                seconds: Math.floor((meetingDuration % 60000) / 1000),
             };
-        });
+            console.log('Formatted Meeting Duration:', formattedDuration);
+            const participantEngagement = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
+                return {
+                    speaker,
+                    engagement: metrics.wordCount
+                };
+            });
 
-        filteredResults.meetingPerformance = {
-            duration: formattedDuration,
-            engagement: participantEngagement,
-        };
+            filteredResults.meetingPerformance = {
+                duration: formattedDuration,
+                engagement: participantEngagement,
+            };
+        } catch (error) {
+            console.error('Error calculating meeting performance:', error);
+        }
 
         // Extract main points for content summary
         const mainPoints = transcriptData.utterances
