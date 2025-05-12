@@ -6,11 +6,13 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const dotenv = require('dotenv');
+const cors = require('cors');
 
 // Load environment variables from .env file
 dotenv.config();
 
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
+console.log('ASSEMBLYAI_API_KEY:', ASSEMBLYAI_API_KEY);
 const TRANSCRIPTS_DIR = path.join(__dirname, 'transcripts');
 
 // Ensure the transcripts directory exists
@@ -20,7 +22,20 @@ if (!fs.existsSync(TRANSCRIPTS_DIR)) {
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: 'http://localhost:3001',
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
+
+// Allow CORS for requests from http://localhost:3001
+app.use(cors({
+    origin: 'http://localhost:3001',
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
 
 // Configure Multer for temporary file storage
 const upload = multer({ dest: 'uploads/' });
@@ -81,6 +96,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         res.status(200).send({ message: 'File uploaded and processed successfully.', metadata });
     } catch (error) {
         console.error('Error during transcription:', error);
+        console.error('Error details:', error);
         res.status(500).send({ message: 'Error during transcription.', error: error.message });
     } finally {
         // Clean up the uploaded file
@@ -481,7 +497,7 @@ async function transcribeAudio(filePath, file) {
 }
 
 // Start the server
-const PORT = process.env.PORT || 3000; // Allow dynamic port selection
+const PORT = process.env.PORT || 3000; // Changed port back to 3000
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
