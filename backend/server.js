@@ -231,15 +231,14 @@ function preprocessTranscript(transcriptData) {
 
 // Analyze transcript data
 function analyzeTranscript(transcriptData) {
-    // Analyze key topics and topic flow
-    const allText = transcriptData.utterances.map(u => u.text).join(' ');
-    const wordFrequency = {};
-    allText.split(/\s+/).forEach(word => {
-        const cleanedWord = word.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (cleanedWord) {
-            wordFrequency[cleanedWord] = (wordFrequency[cleanedWord] || 0) + 1;
-        }
-    });
+    // Summarize the transcript instead of extracting key topics
+    const summary = transcriptData.utterances
+        .map(utterance => utterance.text)
+        .slice(0, 3) // Take the first 3 utterances as a simple summary
+        .join(' ');
+
+    // Replace keyTopics with the summary
+    const keyTopics = summary;
 
     // Analyze speaker contribution metrics
     const speakerMetrics = {};
@@ -300,12 +299,6 @@ function analyzeTranscript(transcriptData) {
         return { index, sentiment };
     });
 
-    // Key topics (top 5)
-    const keyTopics = Object.entries(wordFrequency)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([word]) => word);
-
     // Conversation dynamics
     const conversationDynamics = {
         interruptions: Object.values(speakerMetrics).reduce((sum, metrics) => sum + metrics.interruptions, 0),
@@ -345,6 +338,7 @@ app.get('/backend/transcripts/:id/analyze', (req, res) => {
         let transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
 
         console.log('Transcript Data:', transcriptData);
+        console.log('Transcript Utterances:', transcriptData.utterances);
 
         // Preprocess the transcript
         transcriptData = preprocessTranscript(transcriptData);
@@ -384,7 +378,15 @@ app.get('/backend/transcripts/:id/analyze', (req, res) => {
         filteredResults.actionItems = analysisResults.actionItems;
 
         // Meeting Performance Metrics
-        const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.endTime - utterance.startTime), 0);
+        const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.end - utterance.start), 0);
+        console.log('Raw Meeting Duration (ms):', meetingDuration);
+        console.log('Formatted Meeting Duration (H:M:S):', formattedDuration);
+        const formattedDuration = {
+            hours: Math.floor(meetingDuration / 3600000),
+            minutes: Math.floor((meetingDuration % 3600000) / 60000),
+            seconds: Math.floor((meetingDuration % 60000) / 1000),
+        };
+        console.log('Formatted Meeting Duration:', formattedDuration);
         const participantEngagement = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
             return {
                 speaker,
@@ -393,7 +395,7 @@ app.get('/backend/transcripts/:id/analyze', (req, res) => {
         });
 
         filteredResults.meetingPerformance = {
-            duration: meetingDuration,
+            duration: formattedDuration,
             engagement: participantEngagement,
         };
 
