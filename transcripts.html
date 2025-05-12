@@ -116,20 +116,6 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-        .modal-content button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .modal-content button:hover {
-            background: #0056b3;
-        }
         .dashboard {
             background: #fff;
             padding: 20px;
@@ -241,7 +227,6 @@
                             <h2>Raw Transcript</h2>
                             <p><strong>Upload Time:</strong> ${data.uploadTime ? new Date(data.uploadTime).toLocaleString() : 'Unknown'}</p>
                             <pre>${data.utterances ? data.utterances.map(utterance => `<strong>${utterance.speaker}:</strong> ${utterance.text}`).join('\n\n') : 'Transcript content not available.'}</pre>
-                            <button onclick="this.parentElement.parentElement.remove()">Close</button>
                         </div>
                     `;
                     document.body.appendChild(modal);
@@ -329,7 +314,6 @@
                                 </ul>
                             </div>
                         </div>
-                        <button onclick="this.parentElement.parentElement.remove()">Close</button>
                     `;
 
                     // Meeting Performance Section
