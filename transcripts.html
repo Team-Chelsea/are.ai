@@ -6,17 +6,23 @@
     <title>Transcripts</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f4f9;
-        }
-        .container {
-            padding: 20px;
+            background-color: #f0f8ff; /* Light blue */
+            color: #333;
         }
         h1 {
             text-align: center;
             margin-bottom: 20px;
+            color: #007bff; /* Blue */
+            font-size: 3em;
+            text-shadow: 2px 2px #ffa500; /* Orange shadow */
+        }
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         .transcript-list {
             list-style: none;
@@ -28,36 +34,54 @@
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid #ffbd69;
         }
         .transcript-item:hover {
-            background-color: #e9f5ff;
+            transform: translateY(-5px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+            background-color: #ffebcc;
         }
         .transcript-item h3 {
             margin: 0;
-            font-size: 1.2em;
+            font-size: 1.8em;
+            color: #ff5733;
         }
         .transcript-item p {
             margin: 5px 0;
             color: #555;
         }
         .navigation {
-            position: absolute;
-            top: 20px;
+            position: fixed;
+            top: 0;
             right: 20px;
-            display: flex;
-            gap: 10px;
+            background: #ff5733;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
         }
         .navigation button {
-            background-color: #007bff;
-            color: white;
+            background-color: #f4d03f;
+            color: #333;
             border: none;
-            padding: 15px 30px;
+            padding: 10px 20px;
             border-radius: 5px;
             cursor: pointer;
         }
         .navigation button:hover {
-            background-color: #0056b3;
+            background-color: #ffbd69;
+        }
+        .welcome-message {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.5em;
+            color: #007bff; /* Blue */
+            font-weight: bold;
+        }
+        .welcome-message span {
+            color: #ffa500; /* Orange */
         }
         .transcript-modal {
             position: fixed;
@@ -92,37 +116,84 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-        .modal-content button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
+        .dashboard {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 2px solid #ffbd69;
         }
-        .modal-content button:hover {
-            background: #0056b3;
+        .dashboard-section {
+            margin-bottom: 20px;
+        }
+        .dashboard-section h3 {
+            color: #007bff; /* Blue */
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+        .dashboard-section p {
+            color: #555;
+            font-size: 1.2em;
+        }
+        .dashboard-section ul {
+            list-style: none;
+            padding: 0;
+        }
+        .dashboard-section ul li {
+            background: #fef9e7; /* Light yellow */
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            color: #333;
+        }
+        .dashboard-section ul li:hover {
+            background: #ffa500; /* Orange */
+            color: #fff;
+        }
+        .dashboard-section table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .dashboard-section table th,
+        .dashboard-section table td {
+            border: 1px solid #ffa500; /* Orange border */
+            padding: 10px;
+            text-align: left;
+        }
+        .dashboard-section table th {
+            background: #007bff; /* Blue */
+            color: white;
+        }
+        .dashboard-section table tr:nth-child(even) {
+            background: #f0f8ff; /* Light blue */
+        }
+        .dashboard-section table tr:hover {
+            background: #ffa500; /* Orange */
+            color: #fff;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <div class="navigation">
+        <button id="uploads-button" onclick="window.location.href='/index.html'">Upload</button>
+    </div>
     <div class="container">
         <h1>Transcripts</h1>
+        <p class="welcome-message">Welcome to the <span>Transcripts</span> page! Here you can view and analyze your uploaded transcripts.</p>
         <ul class="transcript-list">
             <!-- Transcript items will be populated here by JavaScript -->
         </ul>
     </div>
-    <div class="navigation">
-        <button id="uploads-button" onclick="window.location.href='/index.html'">Upload</button>
-        <button id="transcripts-button" onclick="window.location.href='/transcripts.html'">Transcripts</button>
-        <button id="feedback-button">Feedback</button>
-    </div>
+
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const socket = io();
+
+        // Add navigation to the upload page
+        document.getElementById('uploads-button').addEventListener('click', () => {
+            window.location.href = '/index.html';
+        });
 
         // Update progress bar and transcript list dynamically
         socket.on('upload-progress', (data) => {
@@ -144,8 +215,8 @@
             }
         });
 
+        // Improve raw transcript viewing
         function viewTranscript(transcriptId) {
-            // Fetch and display the full transcript dynamically
             fetch(`/backend/transcripts/${transcriptId}`)
                 .then(response => response.json())
                 .then(data => {
@@ -153,15 +224,143 @@
                     modal.className = 'transcript-modal';
                     modal.innerHTML = `
                         <div class="modal-content">
+                            <button id="close-modal" style="position: absolute; top: 10px; right: 10px; background-color: #007bff; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer;">X</button>
+                            <h2 style="color: #007bff; text-align: center;">Raw Transcript</h2>
                             <p><strong>Upload Time:</strong> ${data.uploadTime ? new Date(data.uploadTime).toLocaleString() : 'Unknown'}</p>
-                            <p><strong>Speakers:</strong> ${data.utterances ? Array.from(new Set(data.utterances.map(utterance => utterance.speaker))).map(speaker => `<span contenteditable="true" onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="updateSpeakerName('${data.id}', '${speaker}', this.textContent)">${speaker}</span>`).join(', ') : 'No speaker information available.'}</p>
-                            <pre>${data.utterances ? data.utterances.map(utterance => `<strong>${utterance.speaker}:</strong> ${utterance.text}`).join('\n\n') : 'Transcript content not available.'}</pre>
-                            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+                            <pre style="background-color: #f0f8ff; padding: 10px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; color: #333;">${data.utterances ? data.utterances.map(utterance => `<strong>${utterance.speaker}:</strong> ${utterance.text}`).join('\n\n') : 'Transcript content not available.'}</pre>
                         </div>
                     `;
                     document.body.appendChild(modal);
+
+                    // Add event listener to close the modal
+                    document.getElementById('close-modal').addEventListener('click', () => {
+                        document.body.removeChild(modal);
+                    });
                 })
                 .catch(error => console.error('Error fetching transcript:', error));
+        }
+
+        // Add debugging logs to fetchAndDisplaySummary function
+        function fetchAndDisplaySummary(transcriptId) {
+            console.log('Fetching summary for transcript ID:', transcriptId); // Debug log
+            fetch(`/backend/transcripts/${transcriptId}/summary`)
+                .then(response => {
+                    console.log('Summary API response status:', response.status); // Debug log
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch summary');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Summary API response data:', data); // Debug log
+                    const summaryElement = document.getElementById('summary-content');
+                    if (summaryElement) {
+                        summaryElement.textContent = data.summary || 'Summary not available.';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching summary:', error);
+                    const summaryElement = document.getElementById('summary-content');
+                    if (summaryElement) {
+                        summaryElement.textContent = 'Error loading summary.';
+                    }
+                });
+        }
+
+        // Call fetchAndDisplaySummary when analyzing a transcript
+        function analyzeTranscript(transcriptId) {
+            console.log('Analyzing transcript with ID:', transcriptId);
+
+            // Retrieve user preferences from localStorage
+            const savedPreferences = JSON.parse(localStorage.getItem('feedbackPreferences')) || [];
+            const feedbackQuery = savedPreferences.length > 0 ? `?feedback=${savedPreferences.join(',')}` : '';
+
+            // Fetch analysis results and populate the insights
+            fetch(`/backend/transcripts/${transcriptId}/analyze${feedbackQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Analysis Response:', data);
+                    const modal = document.createElement('div');
+                    modal.className = 'transcript-modal';
+                    const modalContent = document.createElement('div');
+                    modalContent.className = 'modal-content';
+
+                    // Safely handle missing or undefined fields
+                    const speakerDistribution = data.speakerDistribution || [];
+                    const sentimentTrend = data.sentimentTrend || [];
+                    const keyTopics = data.keyTopics || [];
+                    const conversationDynamics = data.conversationDynamics || { interruptions: 0, turnTaking: 0 };
+                    const actionItems = data.actionItems || [];
+
+                    // Create a visual dashboard layout with structured tables
+                    modalContent.innerHTML = `
+                        <h2>Transcript Insights</h2>
+                        <div class="dashboard">
+                            <!-- Speaker Distribution Section -->
+                            <div class="dashboard-section">
+                                <h3>Speaker Distribution</h3>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Speaker</th>
+                                            <th>Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${speakerDistribution.map(speaker => `
+                                            <tr>
+                                                <td>${speaker.speaker}</td>
+                                                <td>${speaker.percentage}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Sentiment Trend Section -->
+                            <div class="dashboard-section">
+                                <h3>Sentiment Trend</h3>
+                                <ul>
+                                    ${sentimentTrend.map(trend => `<li>Utterance ${trend.index}: ${trend.sentiment}</li>`).join('')}
+                                </ul>
+                            </div>
+
+                            <!-- Summary Section -->
+                            <div class="dashboard-section">
+                                <h3>Summary</h3>
+                                <p id="summary-content">Loading AI-generated summary...</p>
+                            </div>
+
+                            <!-- Conversation Dynamics Section -->
+                            <div class="dashboard-section">
+                                <h3>Conversation Dynamics</h3>
+                                <p><strong>Interruptions:</strong> ${conversationDynamics.interruptions}</p>
+                                <p><strong>Turn-Taking:</strong> ${conversationDynamics.turnTaking} turns</p>
+                            </div>
+
+                            <!-- Action Items Section -->
+                            <div class="dashboard-section">
+                                <h3>Action Items</h3>
+                                <ul>
+                                    ${actionItems.map(item => `<li>${item}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+
+                    modal.appendChild(modalContent);
+                    document.body.appendChild(modal);
+
+                    // Fetch and display the summary
+                    fetchAndDisplaySummary(transcriptId);
+
+                    // Add event listener to close the modal
+                    const closeModalButton = document.createElement('button');
+                    closeModalButton.textContent = 'Close';
+                    closeModalButton.onclick = () => document.body.removeChild(modal);
+                    modalContent.appendChild(closeModalButton);
+                })
+                .catch(error => console.error('Error analyzing transcript:', error));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -195,6 +394,7 @@
                             <h3 onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }" onblur="this.removeAttribute('contenteditable'); updateTranscriptName('${transcript.id}', this.textContent)">${transcript.displayName}</h3>
                             <p>Date: ${new Date(transcript.uploadTime).toLocaleString()}</p>
                             <p>Preview: ${transcript.preview || 'Transcript preview not available.'}</p>
+                            <button onclick="analyzeTranscript('${transcript.id}')">Analyze</button>
                         `;
 
                         transcriptList.appendChild(listItem);

@@ -6,11 +6,19 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const dotenv = require('dotenv');
+const cors = require('cors');
 
-// Load environment variables from .env file
-dotenv.config();
+// Explicitly specify the path to the .env file
+require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+
+// Check if ASSEMBLYAI_API_KEY is defined
+if (!process.env.ASSEMBLYAI_API_KEY) {
+    console.error('Error: ASSEMBLYAI_API_KEY is not defined in the environment variables.');
+    process.exit(1);
+}
 
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
+console.log('ASSEMBLYAI_API_KEY:', ASSEMBLYAI_API_KEY);
 const TRANSCRIPTS_DIR = path.join(__dirname, 'transcripts');
 
 // Ensure the transcripts directory exists
@@ -20,7 +28,20 @@ if (!fs.existsSync(TRANSCRIPTS_DIR)) {
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: 'http://localhost:3001',
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
+
+// Allow CORS for requests from http://localhost:3001
+app.use(cors({
+    origin: 'http://localhost:3001',
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
 
 // Configure Multer for temporary file storage
 const upload = multer({ dest: 'uploads/' });
@@ -81,6 +102,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         res.status(200).send({ message: 'File uploaded and processed successfully.', metadata });
     } catch (error) {
         console.error('Error during transcription:', error);
+        console.error('Error details:', error);
         res.status(500).send({ message: 'Error during transcription.', error: error.message });
     } finally {
         // Clean up the uploaded file
@@ -195,6 +217,262 @@ app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
     }
 });
 
+// Ensure the summary is strictly one line and concise
+app.get('/backend/transcripts/:id/summary', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    try {
+        const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+
+        console.log('Transcript Data:', transcriptData);
+
+        // Generate a concise one-line summary based on the transcript content
+        const utterances = transcriptData.utterances || [];
+        let summary = '';
+
+        if (utterances.length > 0) {
+            const keyPoints = [];
+
+            // Extract key points from the utterances
+            utterances.forEach(utterance => {
+                if (utterance.text.includes('test') || utterance.text.includes('audio')) {
+                    keyPoints.push(utterance.text);
+                }
+            });
+
+            // Combine key points into a single sentence, ensuring it is one line
+            summary = keyPoints.length > 0
+                ? `Key topics discussed include ${keyPoints.slice(0, 3).join(', ').replace(/\s+/g, ' ')}.`
+                : 'No significant topics identified.';
+        } else {
+            summary = 'The transcript is empty or does not contain any utterances.';
+        }
+
+        // Trim and ensure the summary is concise
+        summary = summary.replace(/\s+/g, ' ').trim();
+
+        console.log('Generated Summary:', summary);
+        res.send({ summary });
+    } catch (error) {
+        console.error('Error generating summary:', error);
+        res.status(500).send({ error: 'Failed to generate summary' });
+    }
+});
+
+// Preprocess transcript data
+function preprocessTranscript(transcriptData) {
+    // Ensure transcript has utterances
+    if (!transcriptData.utterances || !Array.isArray(transcriptData.utterances)) {
+        throw new Error('Invalid transcript format: Missing or invalid utterances');
+    }
+
+    // Clean and normalize text in each utterance
+    transcriptData.utterances.forEach(utterance => {
+        utterance.text = utterance.text
+            .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+            .toLowerCase() // Normalize case
+            .trim(); // Remove extra spaces
+    });
+
+    return transcriptData;
+}
+
+// Analyze transcript data
+function analyzeTranscript(transcriptData) {
+    // Summarize the transcript instead of extracting key topics
+    const summary = transcriptData.utterances
+        .map(utterance => utterance.text)
+        .slice(0, 3) // Take the first 3 utterances as a simple summary
+        .join(' ');
+
+    // Replace keyTopics with the summary
+    const keyTopics = summary;
+
+    // Analyze speaker contribution metrics
+    const speakerMetrics = {};
+    transcriptData.utterances.forEach((utterance, index) => {
+        const speaker = utterance.speaker;
+        if (!speakerMetrics[speaker]) {
+            speakerMetrics[speaker] = { wordCount: 0, turnCount: 0, interruptions: 0 };
+        }
+        speakerMetrics[speaker].wordCount += utterance.text.split(' ').length;
+        speakerMetrics[speaker].turnCount += 1;
+
+        // Check for interruptions
+        if (index > 0 && transcriptData.utterances[index - 1].speaker !== speaker) {
+            speakerMetrics[speaker].interruptions += 1;
+        }
+    });
+
+    // Perform sentiment detection
+    const sentimentAnalysis = transcriptData.utterances.map(utterance => {
+        const text = utterance.text.toLowerCase();
+        if (text.includes('good') || text.includes('great')) return 'Positive';
+        if (text.includes('bad') || text.includes('poor')) return 'Negative';
+        return 'Neutral';
+    });
+    const overallSentiment = sentimentAnalysis.reduce((acc, sentiment) => {
+        acc[sentiment] = (acc[sentiment] || 0) + 1;
+        return acc;
+    }, {});
+
+    // Clarity scoring
+    const clarityMetrics = transcriptData.utterances.map(utterance => {
+        const fillerWords = utterance.text.match(/\b(uh|um|like|you know)\b/gi) || [];
+        const clarityScore = 100 - fillerWords.length * 5; // Deduct 5 points per filler word
+        return {
+            text: utterance.text,
+            clarityScore: Math.max(clarityScore, 0),
+            fillerWords: fillerWords.length,
+        };
+    });
+
+    const confusingSegments = clarityMetrics.filter(segment => segment.clarityScore < 50);
+
+    // Speaker distribution
+    const totalWords = transcriptData.utterances.reduce((sum, utterance) => sum + utterance.text.split(' ').length, 0);
+    const speakerDistribution = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
+        return {
+            speaker,
+            percentage: ((metrics.wordCount / totalWords) * 100).toFixed(2) + '%'
+        };
+    });
+
+    // Sentiment trend
+    const sentimentTrend = transcriptData.utterances.map((utterance, index) => {
+        const text = utterance.text.toLowerCase();
+        let sentiment = 'Neutral';
+        if (text.includes('good') || text.includes('great')) sentiment = 'Positive';
+        if (text.includes('bad') || text.includes('poor')) sentiment = 'Negative';
+        return { index, sentiment };
+    });
+
+    // Conversation dynamics
+    const conversationDynamics = {
+        interruptions: Object.values(speakerMetrics).reduce((sum, metrics) => sum + metrics.interruptions, 0),
+        turnTaking: transcriptData.utterances.length
+    };
+
+    // Action items
+    const actionItems = transcriptData.utterances
+        .filter(utterance => utterance.text.includes('should') || utterance.text.includes('need to'))
+        .map(utterance => utterance.text);
+
+    return {
+        keyTopics,
+        speakerMetrics,
+        overallSentiment,
+        clarityMetrics,
+        confusingSegments,
+        speakerDistribution,
+        sentimentTrend,
+        conversationDynamics,
+        actionItems
+    };
+}
+
+// Endpoint to analyze a transcript
+app.get('/backend/transcripts/:id/analyze', (req, res) => {
+    const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
+
+    console.log('Analyze endpoint hit with ID:', req.params.id);
+    console.log('Constructed file path:', transcriptFilePath);
+
+    if (!fs.existsSync(transcriptFilePath)) {
+        return res.status(404).send({ error: 'Transcript not found' });
+    }
+
+    try {
+        let transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
+
+        console.log('Transcript Data:', transcriptData);
+        console.log('Transcript Utterances:', transcriptData.utterances);
+
+        // Preprocess the transcript
+        transcriptData = preprocessTranscript(transcriptData);
+
+        console.log('Preprocessed Transcript Data:', transcriptData);
+
+        // Extract user preferences from query parameters
+        const selectedFeedback = req.query.feedback ? req.query.feedback.split(',') : [];
+
+        // Analyze the transcript
+        const analysisResults = analyzeTranscript(transcriptData);
+
+        console.log('Analysis Results:', analysisResults);
+
+        // Ensure speakerMetrics is defined and accessible
+        const speakerMetrics = analysisResults.speakerMetrics;
+
+        // Filter results based on user preferences
+        const filteredResults = {};
+        if (selectedFeedback.includes('keyTopics')) {
+            filteredResults.keyTopics = analysisResults.keyTopics;
+        }
+        if (selectedFeedback.includes('speakerMetrics')) {
+            filteredResults.speakerMetrics = analysisResults.speakerMetrics;
+        }
+        if (selectedFeedback.includes('sentiment')) {
+            filteredResults.overallSentiment = analysisResults.overallSentiment;
+        }
+        if (selectedFeedback.includes('clarity')) {
+            filteredResults.clarityMetrics = analysisResults.clarityMetrics;
+            filteredResults.confusingSegments = analysisResults.confusingSegments;
+        }
+
+        // Ensure all metrics are included in the response
+        filteredResults.speakerDistribution = analysisResults.speakerDistribution;
+        filteredResults.sentimentTrend = analysisResults.sentimentTrend;
+        filteredResults.keyTopics = analysisResults.keyTopics;
+        filteredResults.conversationDynamics = analysisResults.conversationDynamics;
+        filteredResults.actionItems = analysisResults.actionItems;
+
+        // Meeting Performance Metrics
+        try {
+            const meetingDuration = transcriptData.utterances.reduce((total, utterance) => total + (utterance.end - utterance.start), 0);
+            console.log('Raw Meeting Duration (ms):', meetingDuration);
+            const formattedDuration = {
+                hours: Math.floor(meetingDuration / 3600000),
+                minutes: Math.floor((meetingDuration % 3600000) / 60000),
+                seconds: Math.floor((meetingDuration % 60000) / 1000),
+            };
+            console.log('Formatted Meeting Duration:', formattedDuration);
+            const participantEngagement = Object.entries(speakerMetrics).map(([speaker, metrics]) => {
+                return {
+                    speaker,
+                    engagement: metrics.wordCount
+                };
+            });
+
+            filteredResults.meetingPerformance = {
+                duration: formattedDuration,
+                engagement: participantEngagement,
+            };
+        } catch (error) {
+            console.error('Error calculating meeting performance:', error);
+        }
+
+        // Extract main points for content summary
+        const mainPoints = transcriptData.utterances
+            ? transcriptData.utterances.map(utterance => utterance.text).slice(0, 3) // First 3 utterances as main points
+            : [];
+
+        // Add main points to the analysis results
+        filteredResults.mainPoints = mainPoints;
+
+        console.log('Final Analysis Results:', filteredResults);
+
+        res.send(filteredResults);
+    } catch (error) {
+        console.error('Error analyzing transcript:', error);
+        res.status(500).send({ error: 'Failed to analyze transcript' });
+    }
+});
+
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('A user connected');
@@ -209,6 +487,9 @@ async function transcribeAudio(filePath, file) {
     try {
         console.log('Reading file:', filePath);
         const fileData = fs.readFileSync(filePath);
+
+        // Debug log to verify the AssemblyAI API key
+        console.log('ASSEMBLYAI_API_KEY:', ASSEMBLYAI_API_KEY);
 
         console.log('Uploading file to AssemblyAI...');
         const uploadResponse = await axios.post('https://api.assemblyai.com/v2/upload', fileData, {
@@ -277,8 +558,19 @@ async function transcribeAudio(filePath, file) {
     }
 }
 
+// Enhanced error logging middleware
+app.use((err, req, res, next) => {
+    console.error('Error occurred during request:', {
+        method: req.method,
+        url: req.url,
+        body: req.body,
+        error: err.stack,
+    });
+    res.status(500).send({ error: 'Internal Server Error', details: err.message });
+});
+
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // Changed default port to 3000
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });

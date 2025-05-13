@@ -1,0 +1,17 @@
+{
+  "name": "forked-are.ai",
+  "version": "1.0.0",
+  "description": "This is where we will actually build the product",
+  "main": "app.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "openai": "^4.98.0"
+  }
+}
