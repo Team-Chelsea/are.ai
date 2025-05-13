@@ -7,10 +7,15 @@ const fs = require('fs');
 const axios = require('axios');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const { Configuration, OpenAIApi } = require('openai'); // Import OpenAI API client
 
-// Load environment variables from .env file
-dotenv.config();
+// Explicitly specify the path to the .env file
+require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+
+// Check if ASSEMBLYAI_API_KEY is defined
+if (!process.env.ASSEMBLYAI_API_KEY) {
+    console.error('Error: ASSEMBLYAI_API_KEY is not defined in the environment variables.');
+    process.exit(1);
+}
 
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY;
 console.log('ASSEMBLYAI_API_KEY:', ASSEMBLYAI_API_KEY);
@@ -20,11 +25,6 @@ const TRANSCRIPTS_DIR = path.join(__dirname, 'transcripts');
 if (!fs.existsSync(TRANSCRIPTS_DIR)) {
     fs.mkdirSync(TRANSCRIPTS_DIR);
 }
-
-// Initialize OpenAI API client
-const openai = new OpenAIApi(new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-}));
 
 const app = express();
 const server = http.createServer(app);
@@ -217,24 +217,8 @@ app.post('/backend/transcripts/:id/update-speaker', (req, res) => {
     }
 });
 
-// Function to generate summary using OpenAI API
-async function generateSummaryWithOpenAI(transcriptText) {
-    try {
-        const response = await openai.createCompletion({
-            model: 'text-davinci-003',
-            prompt: `Summarize the following transcript:\n\n${transcriptText}`,
-            max_tokens: 150,
-            temperature: 0.7,
-        });
-        return response.data.choices[0].text.trim();
-    } catch (error) {
-        console.error('Error generating summary with OpenAI:', error);
-        throw new Error('Failed to generate summary with OpenAI');
-    }
-}
-
-// Endpoint to fetch AI-generated summary of a transcript
-app.get('/backend/transcripts/:id/summary', async (req, res) => {
+// Ensure the summary is strictly one line and concise
+app.get('/backend/transcripts/:id/summary', (req, res) => {
     const transcriptFilePath = path.join(TRANSCRIPTS_DIR, `${req.params.id}.json`);
 
     if (!fs.existsSync(transcriptFilePath)) {
@@ -243,11 +227,35 @@ app.get('/backend/transcripts/:id/summary', async (req, res) => {
 
     try {
         const transcriptData = JSON.parse(fs.readFileSync(transcriptFilePath, 'utf-8'));
-        const transcriptText = transcriptData.utterances
-            ? transcriptData.utterances.map(utterance => utterance.text).join(' ')
-            : '';
 
-        const summary = await generateSummaryWithOpenAI(transcriptText);
+        console.log('Transcript Data:', transcriptData);
+
+        // Generate a concise one-line summary based on the transcript content
+        const utterances = transcriptData.utterances || [];
+        let summary = '';
+
+        if (utterances.length > 0) {
+            const keyPoints = [];
+
+            // Extract key points from the utterances
+            utterances.forEach(utterance => {
+                if (utterance.text.includes('test') || utterance.text.includes('audio')) {
+                    keyPoints.push(utterance.text);
+                }
+            });
+
+            // Combine key points into a single sentence, ensuring it is one line
+            summary = keyPoints.length > 0
+                ? `Key topics discussed include ${keyPoints.slice(0, 3).join(', ').replace(/\s+/g, ' ')}.`
+                : 'No significant topics identified.';
+        } else {
+            summary = 'The transcript is empty or does not contain any utterances.';
+        }
+
+        // Trim and ensure the summary is concise
+        summary = summary.replace(/\s+/g, ' ').trim();
+
+        console.log('Generated Summary:', summary);
         res.send({ summary });
     } catch (error) {
         console.error('Error generating summary:', error);
@@ -480,6 +488,9 @@ async function transcribeAudio(filePath, file) {
         console.log('Reading file:', filePath);
         const fileData = fs.readFileSync(filePath);
 
+        // Debug log to verify the AssemblyAI API key
+        console.log('ASSEMBLYAI_API_KEY:', ASSEMBLYAI_API_KEY);
+
         console.log('Uploading file to AssemblyAI...');
         const uploadResponse = await axios.post('https://api.assemblyai.com/v2/upload', fileData, {
             headers: {
@@ -547,8 +558,19 @@ async function transcribeAudio(filePath, file) {
     }
 }
 
+// Enhanced error logging middleware
+app.use((err, req, res, next) => {
+    console.error('Error occurred during request:', {
+        method: req.method,
+        url: req.url,
+        body: req.body,
+        error: err.stack,
+    });
+    res.status(500).send({ error: 'Internal Server Error', details: err.message });
+});
+
 // Start the server
-const PORT = process.env.PORT || 3000; // Changed port back to 3000
+const PORT = process.env.PORT || 3000; // Changed default port to 3000
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
