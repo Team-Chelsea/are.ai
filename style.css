@@ -1,22 +1,22 @@
 /* Base Styles and Variables */
 :root {
-    --primary-color: #4a6cfa;
-    --primary-light: #eef1ff;
-    --primary-dark: #3251d2;
-    --secondary-color: #6c757d;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --warning-color: #ffc107;
-    --info-color: #17a2b8;
-    --light-color: #f8f9fa;
-    --dark-color: #343a40;
-    --text-color: #333;
-    --text-muted: #6c757d;
-    --border-color: #dee2e6;
+    --primary-color: #4a6cfa; /* Blue */
+    --primary-light: #eef1ff; /* Light Blue */
+    --primary-dark: #3251d2; /* Dark Blue */
+    --secondary-color: #6c757d; /* Neutral Gray */
+    --success-color: #4a6cfa; /* Blue */
+    --danger-color: #3251d2; /* Dark Blue */
+    --warning-color: #4a6cfa; /* Blue */
+    --info-color: #4a6cfa; /* Blue */
+    --light-color: #eef1ff; /* Light Blue */
+    --dark-color: #3251d2; /* Dark Blue */
+    --text-color: #333; /* Neutral */
+    --text-muted: #6c757d; /* Neutral Gray */
+    --border-color: #4a6cfa; /* Blue */
     --border-radius: 8px;
     --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     --transition: all 0.3s ease;
-    --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-main: 'Inter', sans-serif;
   }
   
   /* Reset and Base Styles */
@@ -24,6 +24,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Inter', sans-serif !important;
   }
   
   body {
@@ -201,7 +202,11 @@
   .welcome-message {
     font-size: 16px;
     margin-bottom: 30px;
-    color: var(--text-color);
+    color: #4a6cfa; /* Blue */
+  }
+  
+  .welcome-message span {
+    color: #3251d2; /* Dark Blue */
   }
   
   /* Dashboard */
@@ -665,3 +670,46 @@
       grid-template-columns: 1fr;
     }
   }
+  
+  /* Adding Inter font for the transcripts page */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.transcripts-page {
+    font-family: 'Inter', sans-serif;
+}
+
+.transcript-item {
+    border: 2px solid #4a6cfa; /* Blue */
+    background-color: #eef1ff; /* Light Blue */
+}
+
+.transcript-item:hover {
+    background-color: #d6e4ff; /* Lighter Blue */
+}
+
+h1 {
+    color: #4a6cfa; /* Blue */
+    text-shadow: 2px 2px #3251d2; /* Dark Blue shadow */
+}
+
+.welcome-message {
+    color: #4a6cfa; /* Blue */
+}
+
+.welcome-message span {
+    color: #3251d2; /* Dark Blue */
+}
+
+.navigation {
+    background: #4a6cfa; /* Blue */
+    color: white;
+}
+
+.navigation button {
+    background-color: #3251d2; /* Dark Blue */
+    color: white;
+}
+
+.navigation button:hover {
+    background-color: #4a6cfa; /* Blue */
+}

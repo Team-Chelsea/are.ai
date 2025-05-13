@@ -1,15 +1,21 @@
-const express = require('express');
-const multer = require('multer');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-const fs = require('fs');
-const axios = require('axios');
-const dotenv = require('dotenv');
-const cors = require('cors');
+import express from 'express';
+import multer from 'multer';
+import http from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import fs from 'fs';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import OpenAI from 'openai';
+import { fileURLToPath } from 'url';
+import cors from 'cors';
+
+// Define __filename and __dirname for path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Explicitly specify the path to the .env file
-require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+dotenv.config({ path: path.join(__dirname, '.env'), override: true });
 
 // Check if ASSEMBLYAI_API_KEY is defined
 if (!process.env.ASSEMBLYAI_API_KEY) {
@@ -567,6 +573,45 @@ app.use((err, req, res, next) => {
         error: err.stack,
     });
     res.status(500).send({ error: 'Internal Server Error', details: err.message });
+});
+
+// OpenAI client configuration
+const client = new OpenAI({
+  apiKey: process.env['OPENAI_API_KEY'],
+});
+
+// Log the OpenAI API key to verify it is being loaded correctly
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);
+
+// Log both AssemblyAI and OpenAI API keys to verify they are being loaded correctly
+console.log('ASSEMBLYAI_API_KEY:', process.env.ASSEMBLYAI_API_KEY);
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);
+
+// Add a new endpoint for key takeaways
+app.post('/api/key-takeaways', express.json(), async (req, res) => {
+    const { transcriptId } = req.body;
+
+    const transcriptPath = path.join(__dirname, 'transcripts', `${transcriptId}.json`);
+    if (!fs.existsSync(transcriptPath)) {
+        return res.status(404).json({ error: 'Transcript not found' });
+    }
+
+    const transcriptData = JSON.parse(fs.readFileSync(transcriptPath, 'utf-8'));
+    const transcriptText = transcriptData.utterances.map(u => `${u.speaker}: ${u.text}`).join('\n');
+
+    try {
+        const response = await client.responses.create({
+            model: 'gpt-4o',
+            instructions: 'Extract the key takeaways from the following transcript.',
+            input: transcriptText,
+        });
+
+        const keyTakeaways = response.output_text;
+        res.json({ keyTakeaways });
+    } catch (error) {
+        console.error('Error with OpenAI API:', error);
+        res.status(500).json({ error: 'Failed to generate key takeaways' });
+    }
 });
 
 // Start the server
